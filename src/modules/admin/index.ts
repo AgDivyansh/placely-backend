@@ -191,6 +191,34 @@ studentsRouter.get(
   })
 );
 
+// Admin edits a student's academic record (marks are admin-owned, never
+// self-reported — this is what eligibility is judged on).
+studentsRouter.patch(
+  "/:id",
+  authenticate,
+  requireRole("admin"),
+  validate(
+    z.object({
+      cgpa: z.number().min(0).max(10).optional(),
+      tenthPercent: z.number().min(0).max(100).optional(),
+      twelfthPercent: z.number().min(0).max(100).optional(),
+      backlogs: z.number().int().min(0).optional(),
+      branch: z.enum(["CSE", "ECE", "EEE", "ME", "CE", "IT", "AIDS", "AIML"]).optional(),
+    })
+  ),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const student = await User.findOneAndUpdate(
+      { _id: req.params.id, collegeId: req.user!.collegeId, role: "student" },
+      req.body,
+      { new: true }
+    )
+      .select("name email phone branch cgpa tenthPercent twelfthPercent backlogs collegeRollId")
+      .lean();
+    if (!student) throw NotFound("Student not found");
+    return ok(res, { student }, "Student updated");
+  })
+);
+
 // Bulk-create students from parsed CSV rows. Created one-by-one (not
 // insertMany) so the password-hashing pre-save hook runs per row. Per-row
 // failures (e.g. duplicate email) are collected, not fatal.
