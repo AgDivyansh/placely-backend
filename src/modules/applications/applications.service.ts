@@ -90,6 +90,7 @@ export const applicationsService = {
       return {
         id: a._id,
         applicationId: a._id,
+        jobId: a.jobId, // the frontend selector filters applicants by jobId
         studentId: a.studentId,
         name: s?.name || "—",
         email: s?.email,
