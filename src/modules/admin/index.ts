@@ -209,6 +209,8 @@ studentsRouter.patch(
       twelfthPercent: z.number().min(0).max(100).optional(),
       backlogs: z.number().int().min(0).optional(),
       branch: z.enum(["CSE", "ECE", "EEE", "ME", "CE", "IT", "AIDS", "AIML"]).optional(),
+      // Admin-only: verifies an alumnus as a paid mentor (unlocks their fee).
+      mentorVerified: z.boolean().optional(),
     })
   ),
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -217,7 +219,7 @@ studentsRouter.patch(
       req.body,
       { new: true }
     )
-      .select("name email phone branch cgpa tenthPercent twelfthPercent backlogs collegeRollId")
+      .select("name email phone branch cgpa tenthPercent twelfthPercent backlogs collegeRollId mentorVerified currentCompany graduationYear")
       .lean();
     if (!student) throw NotFound("Student not found");
     return ok(res, { student }, "Student updated");

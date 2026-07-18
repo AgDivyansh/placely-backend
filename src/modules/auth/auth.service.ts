@@ -44,6 +44,9 @@ function toPublicUser(user: IUser) {
     currentCompany: user.currentCompany,
     mentorBio: user.mentorBio,
     openToMentoring: user.openToMentoring,
+    mentorVerified: user.mentorVerified,
+    mentorFee: user.mentorFee,
+    mentorPaymentLink: user.mentorPaymentLink,
     collegeId: user.collegeId,
   };
 }

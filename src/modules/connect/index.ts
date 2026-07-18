@@ -164,7 +164,7 @@ connectRouter.get(
       query.currentCompany = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     }
     const users = await User.find(query)
-      .select("name branch graduationYear currentCompany mentorBio avatar socialLinks")
+      .select("name branch graduationYear currentCompany mentorBio avatar socialLinks mentorVerified mentorFee mentorPaymentLink")
       .lean();
 
     // Only real alumni (past the graduation cutoff).
@@ -179,6 +179,11 @@ connectRouter.get(
         mentorBio: u.mentorBio,
         avatar: u.avatar,
         socialLinks: u.socialLinks,
+        mentorVerified: !!u.mentorVerified,
+        // Surface fee/link only for verified mentors, so a stale fee on a
+        // de-verified alumnus never shows.
+        mentorFee: u.mentorVerified ? u.mentorFee : undefined,
+        mentorPaymentLink: u.mentorVerified ? u.mentorPaymentLink : undefined,
       }));
 
     return ok(res, { alumni });

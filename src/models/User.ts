@@ -64,6 +64,13 @@ export interface IUser extends Document {
   mentorBio?: string;
   openToMentoring?: boolean;
 
+  // Paid mentorship (facilitate-only). Admin sets `mentorVerified`; only then
+  // may the alumnus advertise a fee + their own payment link. The platform
+  // never touches the money — it just displays the link.
+  mentorVerified?: boolean;
+  mentorFee?: number;
+  mentorPaymentLink?: string;
+
   createdAt: Date;
   updatedAt: Date;
 
@@ -139,6 +146,12 @@ const userSchema = new Schema<IUser>(
     currentCompany: { type: String, trim: true },
     mentorBio: { type: String, trim: true },
     openToMentoring: { type: Boolean, default: false },
+
+    // Paid mentorship (facilitate-only). mentorVerified is admin-set; fee +
+    // link only apply once verified.
+    mentorVerified: { type: Boolean, default: false },
+    mentorFee: { type: Number, min: 0 },
+    mentorPaymentLink: { type: String, trim: true },
   },
   { timestamps: true }
 );

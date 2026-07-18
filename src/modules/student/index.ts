@@ -211,6 +211,9 @@ profileRouter.patch(
       currentCompany: z.string().trim().max(80).optional(),
       mentorBio: z.string().trim().max(600).optional(),
       openToMentoring: z.boolean().optional(),
+      // mentorVerified is intentionally NOT here — admin-only, set elsewhere.
+      mentorFee: z.number().min(0).max(100000).optional(),
+      mentorPaymentLink: z.string().url().startsWith("https://", "Payment link must be https").max(300).optional(),
     })
   ),
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -221,6 +224,16 @@ profileRouter.patch(
     if (req.body.isPublic === true) {
       const current = await User.findById(req.user!.id).select("slug name").lean();
       if (current && !current.slug) update.slug = publicSlug(current.name);
+    }
+
+    // Only an admin-verified alumnus may advertise a fee/payment link. Silently
+    // drop these for anyone else so an unverified user can't charge.
+    if (update.mentorFee !== undefined || update.mentorPaymentLink !== undefined) {
+      const current = await User.findById(req.user!.id).select("mentorVerified").lean();
+      if (!current?.mentorVerified) {
+        delete update.mentorFee;
+        delete update.mentorPaymentLink;
+      }
     }
 
     const user = await User.findByIdAndUpdate(req.user!.id, update, { new: true }).lean();
