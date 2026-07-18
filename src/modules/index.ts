@@ -9,6 +9,7 @@ import {
 import {
   announcementsRouter, activityRouter, analyticsRouter, studentsRouter,
 } from "./admin";
+import { connectRouter } from "./connect";
 
 /**
  * The single API router. Mounted at /api in app.ts.
@@ -32,3 +33,4 @@ apiRouter.use("/announcements", announcementsRouter);
 apiRouter.use("/activity", activityRouter);
 apiRouter.use("/analytics", analyticsRouter);
 apiRouter.use("/students", studentsRouter);
+apiRouter.use("/connect", connectRouter);
