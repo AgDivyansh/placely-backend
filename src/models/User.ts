@@ -1,0 +1,94 @@
+import { Schema, model, Document, Types } from "mongoose";
+import bcrypt from "bcryptjs";
+import { Role, Branch } from "../types";
+
+/**
+ * User — both students and admins live here, distinguished by `role`.
+ *
+ * Student-specific academic fields (cgpa, tenthPercent, etc.) are optional
+ * so an admin document isn't forced to carry them. The eligibility engine
+ * reads these fields.
+ *
+ * Multi-identifier login: a student can sign in with email, collegeRollId,
+ * or phone. All three are indexed and unique-per-college so lookups are fast.
+ *
+ * Security: the password is hashed with bcrypt before save and is never
+ * returned by default (select: false). The comparePassword method wraps
+ * the constant-time bcrypt compare.
+ */
+export interface IUser extends Document {
+  collegeId: Types.ObjectId;
+  role: Role;
+  name: string;
+  email: string;
+  phone?: string;
+  collegeRollId?: string; // the student's college ID number
+  password: string;
+
+  // Student academic profile (used by eligibility engine)
+  branch?: Branch;
+  cgpa?: number;
+  tenthPercent?: number;
+  twelfthPercent?: number;
+  backlogs?: number;
+  skills?: string[];
+  resumeUrl?: string;
+  avatar?: string;
+
+  createdAt: Date;
+  updatedAt: Date;
+
+  comparePassword(candidate: string): Promise<boolean>;
+}
+
+const userSchema = new Schema<IUser>(
+  {
+    collegeId: { type: Schema.Types.ObjectId, ref: "College", required: true, index: true },
+    role: { type: String, enum: ["student", "admin"], required: true, default: "student" },
+    name: { type: String, required: true, trim: true },
+    email: { type: String, required: true, lowercase: true, trim: true },
+    phone: { type: String, trim: true },
+    collegeRollId: { type: String, trim: true },
+    // select:false → password is never returned unless explicitly requested
+    password: { type: String, required: true, select: false },
+
+    branch: { type: String, enum: ["CSE", "ECE", "EEE", "ME", "CE", "IT", "AIDS", "AIML"] },
+    cgpa: { type: Number, min: 0, max: 10 },
+    tenthPercent: { type: Number, min: 0, max: 100 },
+    twelfthPercent: { type: Number, min: 0, max: 100 },
+    backlogs: { type: Number, min: 0, default: 0 },
+    skills: { type: [String], default: [] },
+    resumeUrl: { type: String },
+    avatar: { type: String },
+  },
+  { timestamps: true }
+);
+
+/**
+ * Compound unique indexes — scoped per college (multi-tenant).
+ * Two different colleges can each have a student with roll "21CS1234",
+ * but within one college it must be unique. `sparse` lets optional
+ * identifiers (phone, rollId) be absent without violating uniqueness.
+ */
+userSchema.index({ collegeId: 1, email: 1 }, { unique: true });
+userSchema.index({ collegeId: 1, phone: 1 }, { unique: true, sparse: true });
+userSchema.index({ collegeId: 1, collegeRollId: 1 }, { unique: true, sparse: true });
+// Fast directory queries: list/filter students by branch within a college
+userSchema.index({ collegeId: 1, role: 1, branch: 1 });
+
+/**
+ * Hash the password before saving — only when it changed, so profile
+ * updates don't re-hash an already-hashed value. 10 salt rounds is a
+ * good speed/security balance for a portal like this.
+ */
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+
+userSchema.methods.comparePassword = function (candidate: string): Promise<boolean> {
+  return bcrypt.compare(candidate, this.password);
+};
+
+export const User = model<IUser>("User", userSchema);
