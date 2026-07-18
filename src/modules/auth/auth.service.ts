@@ -34,6 +34,13 @@ function toPublicUser(user: IUser) {
     skills: user.skills,
     resumeUrl: user.resumeUrl,
     avatar: user.avatar,
+    // Feature 2 profile data — omitting these dropped a student's resumes,
+    // links, and public-profile state on every relogin.
+    resumes: user.resumes,
+    socialLinks: user.socialLinks,
+    projects: user.projects,
+    slug: user.slug,
+    isPublic: user.isPublic,
     collegeId: user.collegeId,
   };
 }

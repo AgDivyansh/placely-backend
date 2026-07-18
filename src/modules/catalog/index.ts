@@ -7,7 +7,7 @@ import { AuthRequest } from "../../types";
 import { Company } from "../../models/Company";
 import { Alumni } from "../../models/Alumni";
 import { Job } from "../../models/Job";
-import { NotFound } from "../../utils/AppError";
+import { NotFound, Conflict } from "../../utils/AppError";
 
 /* ---------------- Companies ---------------- */
 const companiesRouter = Router();
@@ -36,6 +36,14 @@ companiesRouter.post(
     })
   ),
   asyncHandler(async (req: AuthRequest, res: Response) => {
+    // Reject a duplicate name within the college (case-insensitive), so the
+    // dropdown can't end up with two identical companies.
+    const existing = await Company.findOne({
+      collegeId: req.user!.collegeId,
+      name: new RegExp(`^${req.body.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+    }).lean();
+    if (existing) throw Conflict("A company with this name already exists");
+
     const company = await Company.create({
       ...req.body,
       // Derive a one-letter badge from the name when not supplied.
