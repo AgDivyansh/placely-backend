@@ -57,6 +57,13 @@ export interface IUser extends Document {
   slug?: string;
   isPublic?: boolean;
 
+  // Alumni mentor fields. `currentCompany` powers the referral directory
+  // (students search a company → find college alumni there). `openToMentoring`
+  // opts an alumnus into that directory.
+  currentCompany?: string;
+  mentorBio?: string;
+  openToMentoring?: boolean;
+
   createdAt: Date;
   updatedAt: Date;
 
@@ -127,6 +134,11 @@ const userSchema = new Schema<IUser>(
     // Public shareable profile — opt-in, off by default (privacy-safe).
     slug: { type: String, trim: true },
     isPublic: { type: Boolean, default: false },
+
+    // Alumni mentor / referral directory.
+    currentCompany: { type: String, trim: true },
+    mentorBio: { type: String, trim: true },
+    openToMentoring: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

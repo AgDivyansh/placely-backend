@@ -208,6 +208,9 @@ profileRouter.patch(
       projects: projectsSchema.optional(),
       resumes: resumesSchema.optional(),
       isPublic: z.boolean().optional(),
+      currentCompany: z.string().trim().max(80).optional(),
+      mentorBio: z.string().trim().max(600).optional(),
+      openToMentoring: z.boolean().optional(),
     })
   ),
   asyncHandler(async (req: AuthRequest, res: Response) => {

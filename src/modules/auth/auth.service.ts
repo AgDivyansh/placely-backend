@@ -41,6 +41,9 @@ function toPublicUser(user: IUser) {
     projects: user.projects,
     slug: user.slug,
     isPublic: user.isPublic,
+    currentCompany: user.currentCompany,
+    mentorBio: user.mentorBio,
+    openToMentoring: user.openToMentoring,
     collegeId: user.collegeId,
   };
 }

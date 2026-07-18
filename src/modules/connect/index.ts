@@ -9,6 +9,7 @@ import { ConnectRequest, CONNECT_MODES } from "../../models/ConnectRequest";
 import { User } from "../../models/User";
 import { Notification } from "../../models/misc";
 import { NotFound, BadRequest } from "../../utils/AppError";
+import { isAlumni } from "../../utils/alumni";
 
 /**
  * Connect module — students request help from alumni (mentorship, referrals).
@@ -141,6 +142,46 @@ connectRouter.patch(
     });
 
     return ok(res, { request }, `Request ${verb}`);
+  })
+);
+
+/* ---------- Alumni directory (students find alumni for referrals) ---------- */
+// isAlumni is computed from graduationYear, so we can't query role="alumni";
+// fetch opted-in graduates (college-scoped) and filter in code. Optional
+// ?company= narrows to alumni working there (case-insensitive).
+connectRouter.get(
+  "/directory",
+  authenticate,
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const company = typeof req.query.company === "string" ? req.query.company.trim() : "";
+    const query: Record<string, unknown> = {
+      collegeId: req.user!.collegeId,
+      role: "student",
+      openToMentoring: true,
+      graduationYear: { $ne: null },
+    };
+    if (company) {
+      query.currentCompany = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    }
+    const users = await User.find(query)
+      .select("name branch graduationYear currentCompany mentorBio avatar socialLinks")
+      .lean();
+
+    // Only real alumni (past the graduation cutoff).
+    const alumni = users
+      .filter((u) => isAlumni(u.graduationYear))
+      .map((u) => ({
+        id: u._id,
+        name: u.name,
+        branch: u.branch,
+        graduationYear: u.graduationYear,
+        currentCompany: u.currentCompany,
+        mentorBio: u.mentorBio,
+        avatar: u.avatar,
+        socialLinks: u.socialLinks,
+      }));
+
+    return ok(res, { alumni });
   })
 );
 
