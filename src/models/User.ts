@@ -20,9 +20,11 @@ export interface IUser extends Document {
   collegeId: Types.ObjectId;
   role: Role;
   name: string;
-  email: string;
+  email: string; // permanent personal email — primary login identifier
+  collegeEmail?: string; // college-issued email — verified badge, expires at graduation
   phone?: string;
   collegeRollId?: string; // the student's college ID number
+  graduationYear?: number; // drives computed alumni status
   password: string;
 
   // Student academic profile (used by eligibility engine)
@@ -47,8 +49,16 @@ const userSchema = new Schema<IUser>(
     role: { type: String, enum: ["student", "admin"], required: true, default: "student" },
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
+    // Permanent personal email is `email` above. `collegeEmail` is the
+    // college-issued address — a verified badge that "expires" (becomes
+    // read-only) once the user graduates. Optional so admins/legacy docs
+    // don't need it.
+    collegeEmail: { type: String, lowercase: true, trim: true },
     phone: { type: String, trim: true },
     collegeRollId: { type: String, trim: true },
+    // Drives on-the-fly alumni status (see utils/alumni.isAlumni). No cron:
+    // status is computed from this immutable year, never stored as a flag.
+    graduationYear: { type: Number },
     // select:false → password is never returned unless explicitly requested
     password: { type: String, required: true, select: false },
 
@@ -71,8 +81,23 @@ const userSchema = new Schema<IUser>(
  * identifiers (phone, rollId) be absent without violating uniqueness.
  */
 userSchema.index({ collegeId: 1, email: 1 }, { unique: true });
-userSchema.index({ collegeId: 1, phone: 1 }, { unique: true, sparse: true });
-userSchema.index({ collegeId: 1, collegeRollId: 1 }, { unique: true, sparse: true });
+// Optional identifiers use PARTIAL (not sparse) indexes. A compound sparse
+// index still indexes docs where the optional field is null (because
+// collegeId is always present), so a second user omitting the field collides
+// on `null`. Partial filters index only docs where the field is a real
+// string — so many users can leave it blank, but present values stay unique.
+userSchema.index(
+  { collegeId: 1, collegeEmail: 1 },
+  { unique: true, partialFilterExpression: { collegeEmail: { $type: "string" } } }
+);
+userSchema.index(
+  { collegeId: 1, phone: 1 },
+  { unique: true, partialFilterExpression: { phone: { $type: "string" } } }
+);
+userSchema.index(
+  { collegeId: 1, collegeRollId: 1 },
+  { unique: true, partialFilterExpression: { collegeRollId: { $type: "string" } } }
+);
 // Fast directory queries: list/filter students by branch within a college
 userSchema.index({ collegeId: 1, role: 1, branch: 1 });
 

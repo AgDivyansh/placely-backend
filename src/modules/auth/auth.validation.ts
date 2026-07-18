@@ -7,9 +7,14 @@ import { z } from "zod";
 
 export const signupSchema = z.object({
   name: z.string().min(2, "Name is too short"),
+  // Permanent personal email — the primary, non-expiring login identifier.
   email: z.string().email("Invalid email"),
+  // College-issued email — optional; becomes a read-only badge after graduation.
+  collegeEmail: z.string().email("Invalid college email").optional(),
   phone: z.string().min(8, "Invalid phone").optional(),
   collegeRollId: z.string().min(1).optional(),
+  // Drives computed alumni status (see utils/alumni). Optional at signup.
+  graduationYear: z.number().int().min(2000).max(2100).optional(),
   branch: z.enum(["CSE", "ECE", "EEE", "ME", "CE", "IT", "AIDS", "AIML"]).optional(),
   password: z.string().min(8, "Password must be at least 8 characters"),
   // For the demo, students self-select a college slug. In production a

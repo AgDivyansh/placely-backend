@@ -1,6 +1,7 @@
 import { Response, NextFunction } from "express";
 import { verifyToken } from "../utils/jwt";
 import { Unauthorized, Forbidden } from "../utils/AppError";
+import { isAlumni } from "../utils/alumni";
 import { AuthRequest, Role } from "../types";
 
 /**
@@ -37,4 +38,16 @@ export function requireRole(...roles: Role[]) {
     }
     next();
   };
+}
+
+/**
+ * requireAlumniOrAdmin — guards actions open to admins and alumni (e.g.
+ * posting to the feed). Alumni status is computed from the token's
+ * graduationYear, so no stored role or DB lookup is needed.
+ */
+export function requireAlumniOrAdmin(req: AuthRequest, _res: Response, next: NextFunction) {
+  if (!req.user) throw Unauthorized();
+  if (req.user.role === "admin") return next();
+  if (isAlumni(req.user.graduationYear)) return next();
+  throw Forbidden("Only alumni or admins can perform this action");
 }

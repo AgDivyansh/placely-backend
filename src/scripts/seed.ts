@@ -55,9 +55,11 @@ async function seed() {
     collegeId: college._id,
     role: "student",
     name: "Divyansh Agarwal",
-    email: "divyansh@gmail.com",
+    email: "divyansh@gmail.com", // permanent personal email
+    collegeEmail: "21cs1001@glbajaj.edu", // college email — still active (not yet graduated)
     phone: "+919027395702",
     collegeRollId: "21CS1001",
+    graduationYear: 2027, // future → still a current student
     password: "placely2026",
     branch: "CSE",
     cgpa: 8.4,
@@ -75,13 +77,18 @@ async function seed() {
   for (let i = 0; i < 40; i++) {
     const name = `${rand(firstNames)} ${rand(lastNames)}`;
     const branch = rand(BRANCHES as unknown as string[]);
+    // Mix of grad years: some already past the July-1 cutoff so the demo
+    // has real alumni (isAlumni=true) alongside current students.
+    const graduationYear = rand([2024, 2025, 2026, 2027, 2028]);
     const s = await User.create({
       collegeId: college._id,
       role: "student",
       name,
-      email: `student${i}@college.edu`,
+      email: `student${i}@gmail.com`, // permanent personal email (login)
+      collegeEmail: `21${branch.slice(0, 2).toLowerCase()}${1100 + i}@glbajaj.edu`,
       phone: `+9190000${String(10000 + i).slice(-5)}`,
       collegeRollId: `21${branch.slice(0, 2).toUpperCase()}${1100 + i}`,
+      graduationYear,
       password: "placely2026",
       branch,
       cgpa: +(6.5 + Math.random() * 3.5).toFixed(1),

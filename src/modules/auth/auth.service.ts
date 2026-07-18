@@ -1,6 +1,7 @@
 import { User, IUser } from "../../models/User";
 import { College } from "../../models/College";
 import { signToken } from "../../utils/jwt";
+import { isAlumni } from "../../utils/alumni";
 import { BadRequest, Unauthorized, NotFound, Conflict } from "../../utils/AppError";
 import { z } from "zod";
 import { signupSchema, loginSchema } from "./auth.validation";
@@ -17,8 +18,13 @@ function toPublicUser(user: IUser) {
     id: user._id,
     name: user.name,
     email: user.email,
+    collegeEmail: user.collegeEmail,
     phone: user.phone,
     collegeRollId: user.collegeRollId,
+    graduationYear: user.graduationYear,
+    // Computed, not stored — the frontend renders the college email as a
+    // read-only "expired" badge once this is true.
+    isAlumni: isAlumni(user.graduationYear),
     role: user.role,
     branch: user.branch,
     cgpa: user.cgpa,
@@ -51,13 +57,20 @@ export const authService = {
       role: "student",
       name: input.name,
       email: input.email,
+      collegeEmail: input.collegeEmail,
       phone: input.phone,
       collegeRollId: input.collegeRollId,
+      graduationYear: input.graduationYear,
       branch: input.branch,
       password: input.password, // hashed by the pre-save hook
     });
 
-    const token = signToken({ id: user.id, role: user.role, collegeId: String(user.collegeId) });
+    const token = signToken({
+      id: user.id,
+      role: user.role,
+      collegeId: String(user.collegeId),
+      graduationYear: user.graduationYear,
+    });
     return { user: toPublicUser(user), role: user.role, token };
   },
 
@@ -70,10 +83,19 @@ export const authService = {
         ? "collegeRollId"
         : "email";
 
-    const query: Record<string, unknown> = {
-      [field]: field === "email" ? input.identifier.toLowerCase() : input.identifier,
-      role: input.requestedRole,
-    };
+    // Email login matches EITHER the personal or the college address, so a
+    // student can sign in with whichever they remember. Phone / collegeId
+    // stay single-field lookups.
+    const query: Record<string, unknown> =
+      field === "email"
+        ? {
+            $or: [
+              { email: input.identifier.toLowerCase() },
+              { collegeEmail: input.identifier.toLowerCase() },
+            ],
+            role: input.requestedRole,
+          }
+        : { [field]: input.identifier, role: input.requestedRole };
 
     // Must explicitly select password since it's select:false by default.
     const user = await User.findOne(query).select("+password");
@@ -82,7 +104,12 @@ export const authService = {
     const match = await user.comparePassword(input.password);
     if (!match) throw Unauthorized("Invalid credentials");
 
-    const token = signToken({ id: user.id, role: user.role, collegeId: String(user.collegeId) });
+    const token = signToken({
+      id: user.id,
+      role: user.role,
+      collegeId: String(user.collegeId),
+      graduationYear: user.graduationYear,
+    });
     return { user: toPublicUser(user), role: user.role, token };
   },
 

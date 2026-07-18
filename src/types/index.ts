@@ -31,6 +31,11 @@ export interface AuthPayload {
   id: string;
   role: Role;
   collegeId: string;
+  // Carried so alumni status can be computed from any token without a DB
+  // lookup. The raw year (not a boolean) keeps a 7-day token correct across
+  // the graduation cutoff. Optional: tokens issued before this field existed
+  // simply resolve isAlumni=false until the next login.
+  graduationYear?: number;
 }
 
 export interface AuthRequest extends Request {
