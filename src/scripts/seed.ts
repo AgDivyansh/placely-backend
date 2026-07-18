@@ -96,6 +96,30 @@ async function seed() {
     mentorPaymentLink: "https://example.com/pay/aditya",
   });
 
+  // --- A second alumnus who mentors for FREE (no fee) ---
+  const freeAlumni = await User.create({
+    collegeId: college._id,
+    role: "student",
+    name: "Priya Menon",
+    email: "priya.alumni@placely.com",
+    collegeEmail: "20ec1002@glbajaj.edu",
+    phone: "+919812345671",
+    collegeRollId: "20EC1002",
+    graduationYear: 2022,
+    password: "placely2026",
+    branch: "ECE",
+    cgpa: 9.1,
+    tenthPercent: 94,
+    twelfthPercent: 91,
+    backlogs: 0,
+    skills: ["Embedded", "Backend", "Career guidance"],
+    currentCompany: "Razorpay",
+    mentorBio: "Senior SWE at Razorpay. Always happy to guide juniors — no charge.",
+    openToMentoring: true,
+    mentorVerified: true,
+    // no mentorFee / mentorPaymentLink → free mentor
+  });
+
   // --- More students (for the directory + applicants) ---
   const firstNames = ["Aarav", "Diya", "Ishaan", "Riya", "Krishna", "Ananya", "Arjun", "Sneha", "Vihaan", "Saanvi", "Aditya", "Kavya", "Karan", "Aanya", "Shaurya", "Tara", "Veer", "Aisha", "Yash", "Ira"];
   const lastNames = ["Mehta", "Krishnan", "Patel", "Sharma", "Iyer", "Desai", "Reddy", "Banerjee", "Kapoor", "Joshi"];
