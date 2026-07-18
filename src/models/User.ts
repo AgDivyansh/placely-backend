@@ -37,6 +37,26 @@ export interface IUser extends Document {
   resumeUrl?: string;
   avatar?: string;
 
+  // A small set of named resumes; the student picks one per application.
+  resumes?: { id: string; name: string; filename?: string; fileUrl?: string; isDefault?: boolean }[];
+
+  // User-entered profile URLs, never fetched server-side.
+  socialLinks?: {
+    github?: string;
+    linkedin?: string;
+    leetcode?: string;
+    codeforces?: string;
+    codechef?: string;
+    hackerrank?: string;
+    website?: string;
+  };
+  projects?: { title: string; description: string; url?: string; tech?: string[] }[];
+
+  // Public shareable profile. Opt-in: a profile is private until isPublic is
+  // set true, at which point a college-scoped slug is generated once.
+  slug?: string;
+  isPublic?: boolean;
+
   createdAt: Date;
   updatedAt: Date;
 
@@ -70,6 +90,43 @@ const userSchema = new Schema<IUser>(
     skills: { type: [String], default: [] },
     resumeUrl: { type: String },
     avatar: { type: String },
+
+    resumes: {
+      type: [
+        {
+          id: { type: String, required: true },
+          name: { type: String, required: true, trim: true },
+          filename: { type: String, trim: true },
+          fileUrl: { type: String, trim: true },
+          isDefault: { type: Boolean, default: false },
+        },
+      ],
+      default: [],
+    },
+    socialLinks: {
+      github: { type: String, trim: true },
+      linkedin: { type: String, trim: true },
+      leetcode: { type: String, trim: true },
+      codeforces: { type: String, trim: true },
+      codechef: { type: String, trim: true },
+      hackerrank: { type: String, trim: true },
+      website: { type: String, trim: true },
+    },
+    projects: {
+      type: [
+        {
+          title: { type: String, required: true, trim: true },
+          description: { type: String, default: "", trim: true },
+          url: { type: String, trim: true },
+          tech: { type: [String], default: [] },
+        },
+      ],
+      default: [],
+    },
+
+    // Public shareable profile — opt-in, off by default (privacy-safe).
+    slug: { type: String, trim: true },
+    isPublic: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -97,6 +154,12 @@ userSchema.index(
 userSchema.index(
   { collegeId: 1, collegeRollId: 1 },
   { unique: true, partialFilterExpression: { collegeRollId: { $type: "string" } } }
+);
+// Public profile slug — unique per college, partial so private profiles
+// (no slug) don't collide on null. Also the lookup index for the public route.
+userSchema.index(
+  { collegeId: 1, slug: 1 },
+  { unique: true, partialFilterExpression: { slug: { $type: "string" } } }
 );
 // Fast directory queries: list/filter students by branch within a college
 userSchema.index({ collegeId: 1, role: 1, branch: 1 });

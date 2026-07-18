@@ -191,4 +191,60 @@ studentsRouter.get(
   })
 );
 
+// Bulk-create students from parsed CSV rows. Created one-by-one (not
+// insertMany) so the password-hashing pre-save hook runs per row. Per-row
+// failures (e.g. duplicate email) are collected, not fatal.
+studentsRouter.post(
+  "/import",
+  authenticate,
+  requireRole("admin"),
+  validate(
+    z.object({
+      rows: z
+        .array(
+          z.object({
+            name: z.string().trim().min(1),
+            email: z.string().email(),
+            collegeRollId: z.string().trim().optional(),
+            branch: z.enum(["CSE", "ECE", "EEE", "ME", "CE", "IT", "AIDS", "AIML"]).optional(),
+            cgpa: z.coerce.number().min(0).max(10).optional(),
+            graduationYear: z.coerce.number().int().min(2000).max(2100).optional(),
+          })
+        )
+        .min(1)
+        .max(1000),
+      // Default login password for imported accounts; students reset later.
+      defaultPassword: z.string().min(8).default("placely2026"),
+    })
+  ),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { rows, defaultPassword } = req.body;
+    const collegeId = req.user!.collegeId;
+    let created = 0;
+    const failed: { email: string; reason: string }[] = [];
+
+    for (const row of rows) {
+      try {
+        await User.create({
+          collegeId,
+          role: "student",
+          name: row.name,
+          email: row.email,
+          collegeRollId: row.collegeRollId,
+          branch: row.branch,
+          cgpa: row.cgpa,
+          graduationYear: row.graduationYear,
+          password: defaultPassword,
+        });
+        created++;
+      } catch (err: any) {
+        const reason = err?.code === 11000 ? "Already exists" : err?.message || "Invalid row";
+        failed.push({ email: row.email, reason });
+      }
+    }
+
+    return ok(res, { created, failed }, `Imported ${created} student${created === 1 ? "" : "s"}`);
+  })
+);
+
 export { announcementsRouter, activityRouter, analyticsRouter, studentsRouter };

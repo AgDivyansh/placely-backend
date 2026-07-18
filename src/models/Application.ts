@@ -25,6 +25,7 @@ export interface IApplication extends Document {
   studentId: Types.ObjectId;
   currentStage: Stage;
   stageHistory: IStageChange[];
+  selectedResumeId?: string; // which of the student's resumes was submitted
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +47,7 @@ const applicationSchema = new Schema<IApplication>(
       ],
       default: [],
     },
+    selectedResumeId: { type: String },
   },
   { timestamps: true }
 );

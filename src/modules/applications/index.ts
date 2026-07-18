@@ -29,9 +29,9 @@ applicationsRouter.post(
   "/",
   authenticate,
   requireRole("student"),
-  validate(z.object({ jobId: z.string().min(1) })),
+  validate(z.object({ jobId: z.string().min(1), resumeId: z.string().optional() })),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const application = await applicationsService.apply(req.user!, req.body.jobId);
+    const application = await applicationsService.apply(req.user!, req.body.jobId, req.body.resumeId);
     return created(res, { application }, "Application submitted");
   })
 );
@@ -56,6 +56,45 @@ applicantsRouter.get(
   requireRole("admin"),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const data = await applicationsService.byJob(req.user!, req.params.jobId);
+    return ok(res, data);
+  })
+);
+
+// Bulk stage update for one job from parsed CSV rows [{ rollId, stage }].
+applicantsRouter.post(
+  "/import-status",
+  authenticate,
+  requireRole("admin"),
+  validate(
+    z.object({
+      jobId: z.string().min(1),
+      rows: z
+        .array(z.object({ rollId: z.string().trim().min(1), stage: z.string().trim().min(1) }))
+        .min(1)
+        .max(1000),
+    })
+  ),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await applicationsService.importStatus(req.user!, req.body.jobId, req.body.rows);
+    await logActivity({
+      collegeId: req.user!.collegeId,
+      actorId: req.user!.id,
+      actorName: "Admin",
+      action: `Bulk stage import: ${result.updated} updated`,
+      target: req.body.jobId,
+      kind: "stage",
+    });
+    return ok(res, result, `Updated ${result.updated} applicant${result.updated === 1 ? "" : "s"}`);
+  })
+);
+
+// Applicants across all of a company's jobs (per-company drill-down)
+applicantsRouter.get(
+  "/company/:companyId",
+  authenticate,
+  requireRole("admin"),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const data = await applicationsService.byCompany(req.user!, req.params.companyId);
     return ok(res, data);
   })
 );

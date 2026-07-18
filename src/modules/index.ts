@@ -3,7 +3,9 @@ import authRoutes from "./auth/auth.routes";
 import jobsRoutes from "./jobs";
 import { applicationsRouter, applicantsRouter } from "./applications";
 import { companiesRouter, alumniRouter } from "./catalog";
-import { bookmarksRouter, documentsRouter, notificationsRouter, profileRouter } from "./student";
+import {
+  bookmarksRouter, documentsRouter, notificationsRouter, profileRouter, publicProfileRouter,
+} from "./student";
 import {
   announcementsRouter, activityRouter, analyticsRouter, studentsRouter,
 } from "./admin";
@@ -24,6 +26,8 @@ apiRouter.use("/bookmarks", bookmarksRouter);
 apiRouter.use("/documents", documentsRouter);
 apiRouter.use("/notifications", notificationsRouter);
 apiRouter.use("/profile", profileRouter);
+// Unauthenticated — serves the PII-safe public profile by slug.
+apiRouter.use("/public-profile", publicProfileRouter);
 apiRouter.use("/announcements", announcementsRouter);
 apiRouter.use("/activity", activityRouter);
 apiRouter.use("/analytics", analyticsRouter);

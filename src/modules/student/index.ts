@@ -8,6 +8,8 @@ import { Bookmark, DocumentModel, Notification } from "../../models/misc";
 import { Job } from "../../models/Job";
 import { User } from "../../models/User";
 import { NotFound } from "../../utils/AppError";
+import { isAlumni } from "../../utils/alumni";
+import { publicSlug } from "../../utils/slug";
 
 /* ---------------- Bookmarks ---------------- */
 const bookmarksRouter = Router();
@@ -149,6 +151,43 @@ profileRouter.get(
   })
 );
 
+// Validate full canonical URLs, not bare handles — this blocks javascript:/
+// data: injection when the link is rendered as an anchor on the public page.
+const socialLinksSchema = z
+  .object({
+    github: z.string().regex(/^https:\/\/github\.com\/[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/, "Invalid GitHub profile URL"),
+    linkedin: z.string().regex(/^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9](?:[a-zA-Z0-9-]{1,98}[a-zA-Z0-9])?\/?$/, "Invalid LinkedIn profile URL"),
+    leetcode: z.string().regex(/^https:\/\/leetcode\.com\/u\/[A-Za-z0-9_]{1,25}\/?$/, "Invalid LeetCode profile URL"),
+    codeforces: z.string().regex(/^https:\/\/codeforces\.com\/profile\/[A-Za-z0-9_-]{3,24}$/, "Invalid Codeforces profile URL"),
+    codechef: z.string().regex(/^https:\/\/www\.codechef\.com\/users\/[a-zA-Z0-9_]{4,20}$/, "Invalid CodeChef profile URL"),
+    hackerrank: z.string().regex(/^https:\/\/www\.hackerrank\.com\/profile\/[a-zA-Z0-9_]{3,30}$/, "Invalid HackerRank profile URL"),
+    website: z.string().url().startsWith("https://", "Website must be https").max(200),
+  })
+  .partial();
+
+const projectsSchema = z
+  .array(
+    z.object({
+      title: z.string().trim().min(1).max(120),
+      description: z.string().trim().max(1000).default(""),
+      url: z.string().url().startsWith("https://", "URL must be https").max(300).optional(),
+      tech: z.array(z.string().trim().max(30)).max(20).optional(),
+    })
+  )
+  .max(30);
+
+const resumesSchema = z
+  .array(
+    z.object({
+      id: z.string().min(1),
+      name: z.string().trim().min(1).max(80),
+      filename: z.string().trim().max(200).optional(),
+      fileUrl: z.string().trim().max(300).optional(),
+      isDefault: z.boolean().optional(),
+    })
+  )
+  .max(4);
+
 // Update profile. Academic fields affect eligibility, so they're allowed
 // but should be OTP-gated on the frontend.
 profileRouter.patch(
@@ -165,12 +204,71 @@ profileRouter.patch(
       backlogs: z.number().min(0).optional(),
       skills: z.array(z.string()).optional(),
       resumeUrl: z.string().optional(),
+      socialLinks: socialLinksSchema.optional(),
+      projects: projectsSchema.optional(),
+      resumes: resumesSchema.optional(),
+      isPublic: z.boolean().optional(),
     })
   ),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const user = await User.findByIdAndUpdate(req.user!.id, req.body, { new: true }).lean();
+    const update: Record<string, unknown> = { ...req.body };
+
+    // Generate a stable slug once, the first time a profile is made public.
+    // Kept off the client so it can't be spoofed or enumerated.
+    if (req.body.isPublic === true) {
+      const current = await User.findById(req.user!.id).select("slug name").lean();
+      if (current && !current.slug) update.slug = publicSlug(current.name);
+    }
+
+    const user = await User.findByIdAndUpdate(req.user!.id, update, { new: true }).lean();
     return ok(res, { profile: user }, "Profile updated");
   })
 );
 
-export { bookmarksRouter, documentsRouter, notificationsRouter, profileRouter };
+/* ---------------- Public profile (unauthenticated) ---------------- */
+const publicProfileRouter = Router();
+
+// Whitelist ONLY non-PII fields. Never reuse the authenticated profile shape —
+// it carries email/phone/cgpa. Whitelisting (not blacklisting) means a new
+// sensitive field added later can't leak by omission.
+function toPublicProfile(u: any) {
+  return {
+    id: u._id,
+    name: u.name,
+    avatar: u.avatar,
+    branch: u.branch,
+    graduationYear: u.graduationYear,
+    isAlumni: isAlumni(u.graduationYear),
+    skills: u.skills,
+    resumeUrl: u.resumeUrl,
+    socialLinks: u.socialLinks,
+    projects: u.projects,
+  };
+}
+
+// GET /public-profile/:slug?collegeId=... — no auth. Requires collegeId so a
+// slug is scoped to one college (curbs cross-college enumeration). Returns an
+// identical 404 for missing slug, wrong college, or a private profile so the
+// endpoint reveals nothing about which profiles exist.
+publicProfileRouter.get(
+  "/:slug",
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { collegeId } = req.query;
+    if (typeof collegeId !== "string") throw NotFound("Profile not found");
+    const user = await User.findOne({
+      collegeId,
+      slug: req.params.slug,
+      isPublic: true,
+    }).lean();
+    if (!user) throw NotFound("Profile not found");
+    return ok(res, { profile: toPublicProfile(user) });
+  })
+);
+
+export {
+  bookmarksRouter,
+  documentsRouter,
+  notificationsRouter,
+  profileRouter,
+  publicProfileRouter,
+};
