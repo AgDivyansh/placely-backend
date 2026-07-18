@@ -2,7 +2,7 @@ import { Router, Response } from "express";
 import { Types } from "mongoose";
 import { z } from "zod";
 import { asyncHandler, ok, created } from "../../utils/http";
-import { authenticate, requireRole } from "../../middleware/auth";
+import { authenticate, requireRole, requireAlumniOrAdmin } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 import { logActivity } from "../../utils/logActivity";
 import { AuthRequest } from "../../types";
@@ -27,15 +27,18 @@ announcementsRouter.get(
   })
 );
 
+// Alumni may post (e.g. job openings) as well as admins. Pin/delete below
+// stay admin-only so the placement cell curates what's promoted/removed.
 announcementsRouter.post(
   "/",
   authenticate,
-  requireRole("admin"),
+  requireAlumniOrAdmin,
   validate(
     z.object({
       title: z.string().min(1),
       body: z.string().min(1),
       category: z.enum(["general", "drive", "deadline", "event"]).default("general"),
+      // Only admins may pin; ignore a pinned:true from a non-admin below.
       pinned: z.boolean().default(false),
     })
   ),
@@ -43,6 +46,8 @@ announcementsRouter.post(
     const user = await User.findById(req.user!.id).lean();
     const announcement = await Announcement.create({
       ...req.body,
+      // Non-admins can't self-pin regardless of payload.
+      pinned: req.user!.role === "admin" ? req.body.pinned : false,
       collegeId: req.user!.collegeId,
       authorId: req.user!.id,
       authorName: user?.name || "Placement Cell",
@@ -50,7 +55,7 @@ announcementsRouter.post(
     await logActivity({
       collegeId: req.user!.collegeId,
       actorId: req.user!.id,
-      actorName: user?.name || "Admin",
+      actorName: user?.name || (req.user!.role === "admin" ? "Admin" : "Alumni"),
       action: "Posted announcement",
       target: req.body.title,
       kind: "announcement",
