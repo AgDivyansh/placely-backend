@@ -6,7 +6,7 @@ import { authenticate, requireRole, requireAlumniOrAdmin } from "../../middlewar
 import { validate } from "../../middleware/validate";
 import { logActivity } from "../../utils/logActivity";
 import { AuthRequest } from "../../types";
-import { Announcement, Activity } from "../../models/misc";
+import { Announcement, Activity, DocumentModel } from "../../models/misc";
 import { Application } from "../../models/Application";
 import { User } from "../../models/User";
 import { Job } from "../../models/Job";
@@ -279,6 +279,78 @@ studentsRouter.post(
     }
 
     return ok(res, { created, failed }, `Imported ${created} student${created === 1 ? "" : "s"}`);
+  })
+);
+
+// Bulk-import student documents from parsed CSV rows. Each row targets a
+// student (by rollId, else email) and a document type; upserts on
+// {studentId,type} so re-imports update rather than duplicate. Metadata-only
+// (no file upload) — filename/size/status are what the placement cell records.
+studentsRouter.post(
+  "/documents/import",
+  authenticate,
+  requireRole("admin"),
+  validate(
+    z.object({
+      rows: z
+        .array(
+          z.object({
+            rollId: z.string().trim().optional(),
+            email: z.string().email().optional(),
+            type: z.string().trim().min(1),
+            name: z.string().trim().optional(),
+            filename: z.string().trim().optional(),
+            size: z.string().trim().optional(),
+            status: z.enum(["missing", "uploaded", "verified", "rejected"]).optional(),
+            required: z.coerce.boolean().optional(),
+          })
+        )
+        .min(1)
+        .max(2000),
+    })
+  ),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { rows } = req.body;
+    const collegeId = req.user!.collegeId;
+    let imported = 0;
+    const failed: { row: string; reason: string }[] = [];
+
+    for (const row of rows) {
+      const ref = row.rollId || row.email || "?";
+      try {
+        const student = await User.findOne({
+          collegeId,
+          role: "student",
+          ...(row.rollId ? { collegeRollId: row.rollId } : { email: row.email }),
+        })
+          .select("_id")
+          .lean();
+        if (!student) {
+          failed.push({ row: ref, reason: "Student not found" });
+          continue;
+        }
+        await DocumentModel.findOneAndUpdate(
+          { studentId: student._id, type: row.type },
+          {
+            collegeId,
+            studentId: student._id,
+            type: row.type,
+            name: row.name || row.type,
+            filename: row.filename,
+            size: row.size,
+            status: row.status || (row.filename ? "uploaded" : "missing"),
+            required: row.required ?? false,
+            uploadedAt: row.filename ? new Date() : undefined,
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+        imported++;
+      } catch (err: any) {
+        failed.push({ row: ref, reason: err?.message || "Invalid row" });
+      }
+    }
+
+    return ok(res, { imported, failed }, `Imported ${imported} document${imported === 1 ? "" : "s"}`);
   })
 );
 
