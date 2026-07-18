@@ -7,6 +7,7 @@ import { Company } from "../models/Company";
 import { Job } from "../models/Job";
 import { Application } from "../models/Application";
 import { Alumni } from "../models/Alumni";
+import { ConnectRequest } from "../models/ConnectRequest";
 import { Announcement, DocumentModel, Notification } from "../models/misc";
 import { STAGES, BRANCHES } from "../types";
 
@@ -33,6 +34,7 @@ async function seed() {
     College.deleteMany({}), User.deleteMany({}), Company.deleteMany({}),
     Job.deleteMany({}), Application.deleteMany({}), Alumni.deleteMany({}),
     Announcement.deleteMany({}), DocumentModel.deleteMany({}), Notification.deleteMany({}),
+    ConnectRequest.deleteMany({}),
   ]);
 
   // --- College ---
@@ -67,6 +69,31 @@ async function seed() {
     twelfthPercent: 84,
     backlogs: 0,
     skills: ["React", "JavaScript", "Node.js", "TypeScript"],
+  });
+
+  // --- Demo alumnus (graduated → alumni persona; open + verified mentor) ---
+  const demoAlumni = await User.create({
+    collegeId: college._id,
+    role: "student", // alumni is computed from graduationYear, not a stored role
+    name: "Aditya Sharma",
+    email: "alumni@placely.com",
+    collegeEmail: "19cs1001@glbajaj.edu",
+    phone: "+919812345670",
+    collegeRollId: "19CS1001",
+    graduationYear: 2023, // past July-1 cutoff → isAlumni = true
+    password: "placely2026",
+    branch: "CSE",
+    cgpa: 8.9,
+    tenthPercent: 92,
+    twelfthPercent: 90,
+    backlogs: 0,
+    skills: ["System Design", "DSA", "Payments"],
+    currentCompany: "Stripe",
+    mentorBio: "SWE at Stripe. Happy to help with system design, interviews, and referrals.",
+    openToMentoring: true,
+    mentorVerified: true,
+    mentorFee: 500,
+    mentorPaymentLink: "https://example.com/pay/aditya",
   });
 
   // --- More students (for the directory + applicants) ---
@@ -172,11 +199,19 @@ async function seed() {
     { collegeId: college._id, name: "Karthik Iyer", gradYear: 2022, company: "Microsoft", role: "SDE II", domains: ["OOP", "Azure"] },
   ]);
 
-  // --- Announcements ---
+  // --- Announcements (incl. one authored by the alumnus) ---
   await Announcement.insertMany([
     { collegeId: college._id, title: "Razorpay drive — pre-placement talk Monday", body: "All shortlisted students must attend the pre-placement talk Monday 10 AM.", category: "drive", pinned: true, authorId: admin._id, authorName: "Placement Cell" },
     { collegeId: college._id, title: "Resume deadline extended to Friday", body: "Upload your final resume to the document vault by Friday 6 PM.", category: "deadline", pinned: true, authorId: admin._id, authorName: "Placement Cell" },
     { collegeId: college._id, title: "Mock interviews with alumni — register now", body: "Limited slots for mock interviews with verified alumni.", category: "event", pinned: false, authorId: admin._id, authorName: "Placement Cell" },
+    { collegeId: college._id, title: "Stripe is hiring interns — referrals open", body: "We have SDE intern openings on my team at Stripe. Reach out via Alumni Connect and I can refer strong candidates.", category: "drive", pinned: false, authorId: demoAlumni._id, authorName: demoAlumni.name },
+  ]);
+
+  // --- Sample connect requests (fills the alumnus's mentor inbox) ---
+  await ConnectRequest.insertMany([
+    { collegeId: college._id, studentId: students[1]._id, alumniId: demoAlumni._id, mode: "video", topic: "System design interview prep", note: "Interviewing at a fintech next week — would love a mock round.", status: "pending" },
+    { collegeId: college._id, studentId: students[2]._id, alumniId: demoAlumni._id, mode: "audio", topic: "Referral for Stripe SDE", note: "Applied last week, hoping for a referral.", status: "pending" },
+    { collegeId: college._id, studentId: students[3]._id, alumniId: demoAlumni._id, mode: "chat", topic: "How to approach DSA rounds", status: "accepted", meetingLink: "https://meet.google.com/abc-defg-hij" },
   ]);
 
   // --- Documents for the demo student ---
@@ -206,6 +241,7 @@ async function seed() {
 
   console.log("✅ Seed complete!");
   console.log("   Student login: divyansh@gmail.com / placely2026");
+  console.log("   Alumni login:  alumni@placely.com / placely2026");
   console.log("   Admin login:   divyansh@admin.com / placely2026");
 
   await disconnectDB();
