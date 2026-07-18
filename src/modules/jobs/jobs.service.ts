@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { Job } from "../../models/Job";
 import { Company } from "../../models/Company";
 import { User } from "../../models/User";
@@ -50,8 +51,10 @@ export const jobsService = {
     }
 
     // Admin view: attach company + applicant counts.
+    // aggregate() skips Mongoose casting; pass a real ObjectId (deriving it
+    // from jobs[0] breaks when the college has no jobs yet).
     const counts = await Application.aggregate([
-      { $match: { collegeId: (jobs[0] as any)?.collegeId } },
+      { $match: { collegeId: new Types.ObjectId(collegeId) } },
       { $group: { _id: "$jobId", count: { $sum: 1 } } },
     ]);
     const countMap = new Map(counts.map((c) => [String(c._id), c.count]));

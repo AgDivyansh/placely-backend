@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { Types } from "mongoose";
 import { z } from "zod";
 import { asyncHandler, ok, created } from "../../utils/http";
 import { authenticate, requireRole } from "../../middleware/auth";
@@ -110,6 +111,9 @@ analyticsRouter.get(
   requireRole("admin"),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const collegeId = req.user!.collegeId;
+    // aggregate() bypasses Mongoose casting, so $match needs a real ObjectId
+    // (a string never matches). Cast explicitly instead of fetching a doc.
+    const collegeObjectId = new Types.ObjectId(collegeId);
 
     // Run independent aggregations in parallel for speed.
     const [activeJobs, totalApplicants, offers, stageAgg] = await Promise.all([
@@ -117,7 +121,7 @@ analyticsRouter.get(
       Application.countDocuments({ collegeId }),
       Application.countDocuments({ collegeId, currentStage: "offer" }),
       Application.aggregate([
-        { $match: { collegeId: (await Job.findOne({ collegeId }))?.collegeId } },
+        { $match: { collegeId: collegeObjectId } },
         { $group: { _id: "$currentStage", count: { $sum: 1 } } },
       ]),
     ]);
